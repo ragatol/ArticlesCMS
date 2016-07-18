@@ -67,67 +67,29 @@ class Article {
 	private $database;
 
 	public $id;
+	public $category;
+	public $lang;
 	public $title;
 	public $author;
 	public $description;
-	public $path;
-	public $category;
+	public $file;
+	public $keywords;
+	public $published;
+	public $edited;
 
 
 
-	public function __construct(DataBase $db, $id = NULL) {
+	public function __construct(DataBase $db) {
 		$this->database = $db;
 	}
 
-	/**
-	* transform article document and echo to current php buffer
-	*/
-	public function printContent() {
-		// select content based on visitor language preference (?)
-		// check content type (.html, .php or .md)
-		// if content-type != html
-		//		if content is cacheable and cache exists
-		//			read cached result and print to output buffer
-		//		else
-		//			transform to html
-		//			save result to cache if content is cacheable (static)
-		// check if inlined images/objects have their correct path based \
-		// on article directory path
-		// print html to output buffer
-	}
-
-	/**
-	* gets the filename of the article with the content
-	*/
-	public function contentFile( $lang = NULL) : string {
-
-	}
-
-	/**
-	* transform article document and return result as string
-	*/
-	public function getContent() : string {
-		// start new buffer
-		// printContents()
-		// get buffer contents and return
-	}
-
-	/**
-	* Force rebuild of cached transformations (if content is cacheable)
-	*/
-	public function rebuildCaches() {
-		// get list of languages of this content
-		// for each language in languages:
-		//		if language-content is cacheabe:
-		//			save cached result of getContents(language);
-	}
 }
 
 /*
 Category definition:
 Organize articles inside distict categories, using filesystem folders.
 
-A folder that represents a category must have the category.json file, with the followin information
+A folder that represents a category must have the category.json file, with the following information
 
 {
 	"languages" = {
@@ -152,12 +114,6 @@ class Category {
 		$this->database = $db;
 	}
 
-	public function getNames() : array {
-		$pdo = $this->db->PDO();
-		$res = $pdo->query("SELECT name, lang from categories where id == $this->id;");
-		return $res->fetchAll();
-	}
-
 	/**
 	 * Returns a Generator that generates Category objects from categories that are immediate children of this category.
 	 * @param string $language language to get the 'name' property from
@@ -180,21 +136,16 @@ class Category {
 	public function listArticles( $sortby = '', int $limit = -1, int $start = -1) : \Generator {
 		$pdo = $this->database->PDO();
 		if ($sortby != '') $sortby = "SORT BY ".$pdo->$sortby;
-		
+		$strlimit = "";
+		if ($limit > -1) $strlimit .= "LIMIT $limit ";
+		if ($start > -1) $strlimit .= "OFFSET $start";
+		$res = $pdo->query("SELECT id, title, author, category, description, lang, file, keywords, published, edited
+				FROM articles WHERE category == $this->id $sortby $strlimit;");
+		while ($o = $res->fetchObject("Articles\Article",[$this->database])) {
+			yield  $o;
+		}
 	}
 
-	/**
-	* Make a path to this category, from the to most category to this category
-	*/
-	public function getCategoryHierarchy() : array {
-		// make new array of Category
-		// temp_category = this category
-		// while temp_category.parent != 0
-		// 		insert at start of the array temp_category
-		//		temp_category = database.getCategory(temp_category.parent)
-		// insert temp_category at start fo the array
-		// return the array 
-	}
 }
 
 /*
@@ -207,7 +158,11 @@ json file with the following attributes:
 "basepath" : content base directory (full path or reative to site base directory, needs read/write permissions)
 */
 
-
+/**
+ * Articles DataBase access
+ * @author rafael
+ *
+ */
 class DataBase {
 
 	private $connection;
@@ -286,7 +241,7 @@ class DataBase {
 			$sql->bindParam(':title', $data->title);
 			$sql->bindParam(':description', $data->description);
 			$sql->bindParam(':keywords', $data->keywords);
-			$sql->bindValue('file', $path.$data->file);
+			$sql->bindValue(':file', $path.$data->file);
 			$sql->execute();
 		}
 	}
@@ -341,7 +296,7 @@ class DataBase {
 	 * @return \Generator
 	 */
 	public function listCategories() : \Generator {
-		$res = $this->connection->query("SELECT id, name FROM categories WHERE lang == \"$this->language\" AND parent == 0;");
+		$res = $this->connection->query("SELECT * FROM categories WHERE lang == \"$this->language\" AND parent == 0;");
 		while ($cat = $res->fetchObject("Articles\Category",[$this])) {
 			yield $cat;
 		}
@@ -357,12 +312,16 @@ class DataBase {
 		return NULL;
 	}
 
-	public function getCategory( $cat_id ) : Category {
-		return new Category($this,$cat_id);
+	public function getCategory( int $cat_id ) : Category {
+		$res = $this->connection->query("SELECT * FROM categories WHERE id == $cat_id AND lang == \"$this->language\";");
+		if ($res->rowCount() > 0) return $res->fetchObject("Articles\Category",[$this]);
+		return NULL;
 	}
 
-	public function getArticle( $article_id ) : Article {
-		return new Article($this,$article_id);
+	public function getArticle( int $article_id ) : Article {
+		$res = $this->connection->query("SELECT id, title, author, description, category, lang, file, keywords, published, edited
+				FROM articles WHERE id == $article_id AND lang == \"$this->language\";");
+		if ($res->rowCount() > 0) return $res->fetchObject("Articles\Article",[$this]);
 	}
 
 	public function PDO() : \PDO {
