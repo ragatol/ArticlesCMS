@@ -1,0 +1,15 @@
+{
+	"languages":{
+		"en": {
+			"title": "Article Three",
+			"description": "Third article.",
+			"file": "tree.md"
+		},
+		"pt": {
+			"title": "Artigo Três",
+			"description": "Terceiro artigo em português",
+			"file": "tres.md"
+		}
+	},
+	"author":"Rafael Fernandes"
+}

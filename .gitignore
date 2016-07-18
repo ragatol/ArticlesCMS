@@ -1,0 +1,5 @@
+.vscode/
+test/test.db
+.settings/
+.project
+.buildpath

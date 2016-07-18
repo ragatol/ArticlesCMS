@@ -1,0 +1,16 @@
+{
+	"languages" : {
+		"en" : {
+			"title" : "Article One",
+			"description": "Short description of article one.",
+			"keywords": null,
+			"file": "article1_en.html"
+		},
+		"pt" : {
+			"title": "Artigo Um",
+			"description": "Pequena descrição do artigo um.",
+			"file": "article1_pt.html"
+		}
+	},
+	"author": "Rafael Fernandes"
+}

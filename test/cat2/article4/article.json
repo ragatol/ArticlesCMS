@@ -1,0 +1,15 @@
+{
+	"languages":{
+		"en": {
+			"title": "Article Four",
+			"description": "Description of ther fourth article.",
+			"file": "en_4.php"
+		},
+		"pt": {
+			"title": "Artigo Quatro",
+			"description": "Descrição do quarto artigo.",
+			"file": "pt_4.php"
+		}
+	},
+	"author":"Rafael Fernandes"
+}

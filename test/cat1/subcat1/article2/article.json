@@ -1,0 +1,16 @@
+{
+	"languages": {
+		"en": {
+			"title": "Second Article",
+			"description": "Description for the second article, at the @category category",
+			"file": "english.html"
+		},
+		"pt": {
+			"title": "Segundo artigo",
+			"description": "Descrição para o segundo artigo na categoria @category",
+			"file": "ptbr.html",
+			"keywords": "artigo,segundo"
+		}
+	},
+	"author": "Magnuz Guerra"
+}

@@ -1,0 +1,8 @@
+{
+	"server" : "sqlite:test.db",
+	"username" : null,
+	"password" : null,
+	"basedir" : "./",
+	"categoriesFromPath" : true,
+	"defaultCaching" : false
+}
