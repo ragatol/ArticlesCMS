@@ -135,14 +135,15 @@ class Category {
 	 */
 	public function listArticles( $sortby = '', int $limit = -1, int $start = -1) : \Generator {
 		$pdo = $this->database->PDO();
+		$lang = $this->database->getLanguage();
 		if ($sortby != '') $sortby = "SORT BY ".$pdo->$sortby;
 		$strlimit = "";
 		if ($limit > -1) $strlimit .= "LIMIT $limit ";
 		if ($start > -1) $strlimit .= "OFFSET $start";
 		$res = $pdo->query("SELECT id, title, author, category, description, lang, file, keywords, published, edited
-				FROM articles WHERE category == $this->id $sortby $strlimit;");
+				FROM articles WHERE lang == \"$lang\" AND category == $this->id $sortby $strlimit;");
 		while ($o = $res->fetchObject("Articles\Article",[$this->database])) {
-			yield  $o;
+			yield $o;
 		}
 	}
 
@@ -181,7 +182,7 @@ class DataBase {
 			// create tables and 'update' database
 			$this->createTables();
 			$this->connection->beginTransaction();
-			$this->initialize($this->basepath);
+			$this->addFolder($this->basepath);
 			$this->connection->commit();
 		}
 	}
@@ -224,7 +225,7 @@ class DataBase {
 			WHERE articles_data.article == articles_indexes.id;');
 	}
 
-	function makeArticle( string $path, int $category ) {
+	function makeArticle( string $path, int $category ) : int {
 		$info = \json_decode(\file_get_contents($path."article.json"));
 		// verify edited and published datetimes
 		if (!isset($info->edited)) $info->edited = date(DATE_ATOM);
@@ -244,32 +245,32 @@ class DataBase {
 			$sql->bindValue(':file', $path.$data->file);
 			$sql->execute();
 		}
+		return $id;
 	}
 
-	function makeCategory( string $path, int $id, int $parent ) {
+	function makeCategory( string $path, int $parent ) : int {
 		$info = \json_decode(\file_get_contents($path."category.json"));
-		$ins = $this->connection->prepare('INSERT INTO "categories_data" (cat,lang,name) values (:cat,:language,:name);');
-		$ins->bindValue(':cat',$id,\PDO::PARAM_INT);
+		$this->connection->exec("INSERT INTO \"categories_indexes\" (parent,path) VALUES ($parent,\"$path\");");
+		$id = $this->connection->lastInsertId();
+		$ins = $this->connection->prepare("INSERT INTO 'categories_data' (cat,lang,name) values ($id,:language,:name);");
 		foreach ($info as $lang => $name) {
 			$ins->bindParam(':language',$lang);
 			$ins->bindParam(':name',$name);
 			$ins->execute();
 		}
+		return $id;
 	}
 
-	public function initialize( string $path, int $category = 0) {
+	public function addFolder( string $path, int $parent = 0) {
 		// check for article.json (json)
 		if (file_exists($path."article.json")) {
 			// directory is an article
-			$this->makeArticle($path,$category);
+			$this->makeArticle($path,$parent);
 			return;
 		}
 		if (file_exists($path."category.json")) {
 			// directory is a category
-			$this->connection->exec("INSERT INTO \"categories_indexes\" (parent,path) VALUES ($category,\"$path\");");
-			$parent = $category;
-			$category = $this->connection->lastInsertId();
-			$this->makeCategory($path,$category,$parent);
+			$parent = $this->makeCategory($path,$parent);
 		}
 		// directory is category or neither, check directories inside
 		$dir = opendir($path);
@@ -278,7 +279,7 @@ class DataBase {
 			if ($entry == "." || $entry == "..") continue;
 			$direc = $path.$entry."/";
 			if (!is_dir($direc)) continue;
-			$this->initialize($direc,$category);
+			$this->addFolder($direc,$parent);
 		}
 	}
 	
@@ -291,12 +292,12 @@ class DataBase {
 	}
 	
 	/**
-	 * Returns a generator that genereates stdClass objects with id and name, listing root categories.
+	 * Returns a generator that genereates Category objects.
 	 * @param string $language
 	 * @return \Generator
 	 */
-	public function listCategories() : \Generator {
-		$res = $this->connection->query("SELECT * FROM categories WHERE lang == \"$this->language\" AND parent == 0;");
+	public function listCategories(int $parent_category = 0) : \Generator {
+		$res = $this->connection->query("SELECT * FROM categories WHERE lang == \"$this->language\" AND parent == $parent_category;");
 		while ($cat = $res->fetchObject("Articles\Category",[$this])) {
 			yield $cat;
 		}
@@ -322,6 +323,7 @@ class DataBase {
 		$res = $this->connection->query("SELECT id, title, author, description, category, lang, file, keywords, published, edited
 				FROM articles WHERE id == $article_id AND lang == \"$this->language\";");
 		if ($res->rowCount() > 0) return $res->fetchObject("Articles\Article",[$this]);
+		return NULL;
 	}
 
 	public function PDO() : \PDO {
