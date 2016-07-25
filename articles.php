@@ -113,18 +113,14 @@ class Category {
 	public function __construct(DataBase $db) {
 		$this->database = $db;
 	}
-
+	
 	/**
 	 * Returns a Generator that generates Category objects from categories that are immediate children of this category.
 	 * @param string $language language to get the 'name' property from
 	 * @return \Generator
 	 */
 	public function listSubCategories() : \Generator {
-		$lang = $this->database->getLanguage();
-		$res = $this->database->PDO()->query("SELECT * FROM categories WHERE lang == \"$lang\" AND parent == $this->id;");
-		while ($o = $res->fetchObject("Articles\Category",[$this->database])) {
-			yield $o;
-		}
+		return $this->database->listCategories($this->id);
 	}
 
 	/**
@@ -172,7 +168,7 @@ class DataBase {
 	private $language;
 
 	public function __construct( string $config, string $language = "en" ) {
-		$cfg = \json_decode($config);
+		$cfg = \json_decode(\file_get_contents($config));
 		$this->basepath = $cfg->basedir;
 		$this->language = $language;
 		$this->connection = new \PDO($cfg->server,$cfg->username,$cfg->password);

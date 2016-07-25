@@ -1,35 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf8">
+	<title>ArticlesCMS Test</title>
+</head>
+<body>
+
 <?php
 include "../articles.php";
 
 @unlink("test.db"); // for testing
-$db = new Articles\DataBase(file_get_contents("test.json"));
+$db = new Articles\DataBase("test.json");
 // list root categories
-$db->setLanguage("en");
-echo "Listing database hierarchy (english):\n";
-foreach ($db->listCategories() as $cat) {
-	echo "Category $cat->id: $cat->name\n";
-	foreach ($cat->listSubCategories() as $subcat) {
-		echo "+ Sub-Category $subcat->id: $subcat->name\n";
-		foreach ($subcat->listArticles() as $article) {
-			echo "\t- $article->title: $article->description; ($article->id)\n";
+
+function makeList($category = 0) {
+	global $db;
+	echo "<ul>\n";
+	foreach ($db->listCategories($category) as $cat) {
+		echo "<li><h3>$cat->name</h3>\n";
+		echo "<ul>";
+		foreach ($cat->listArticles() as $article) {
+			echo "<li><h4>$article->title:</h4> $article->description</li>\n";
 		}
+		echo "</ul>\n";
+		makeList($cat->id);
 	}
-	foreach ($cat->listArticles() as $article) {
-		echo "- $article->title: $article->description; ($article->id)\n";
-	}
+	echo "</ul>\n";
 }
 
+$db->setLanguage("en");
+echo "<h2>Listing database hierarchy (english):</h2>\n";
+makeList();
+
 $db->setLanguage("pt");
-echo "\nListing database hierarchy (portuguese):\n";
-foreach ($db->listCategories() as $cat) {
-	echo "Category $cat->id: $cat->name\n";
-	foreach ($cat->listSubCategories() as $subcat) {
-		echo "+ Sub-Category $subcat->id: $subcat->name\n";
-		foreach ($subcat->listArticles() as $article) {
-			echo "\t- $article->title: $article->description; ($article->id)\n";
-		}
-	}
-	foreach ($cat->listArticles() as $article) {
-		echo "- $article->title: $article->description; ($article->id)\n";
-	}
-}
+echo "\n<h2>Listing database hierarchy (portuguese):</h2>\n";
+makeList();
+?>
+</body>
+</html>
