@@ -1,19 +1,10 @@
-<!DOCTYPE html>
-<html>
-<head>
-	<meta charset="utf-8">
-	<title>ArticlesCMS Test</title>
-</head>
-<body>
-
 <?php
 include "../articles.php";
 
 @unlink("test.db"); // for testing
 $db = new Articles\DataBase("test.json");
-// list root categories
 
-function makeList($category = 0) {
+function makeList($category = 0) { 
 	global $db;
 	echo "<ul>\n";
 	foreach ($db->listCategories($category) as $cat) {
@@ -27,13 +18,24 @@ function makeList($category = 0) {
 	}
 	echo "</ul>\n";
 }
+?>
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>ArticlesCMS Test</title>
+</head>
+<body>
 
+<h2>Listing database hierarchy (english):</h2>
+<?php
 $db->setLanguage("en");
-echo "<h2>Listing database hierarchy (english):</h2>\n";
 makeList();
+?>
 
+<h2>Listing database hierarchy (portuguese):</h2>
+<?php
 $db->setLanguage("pt");
-echo "\n<h2>Listing database hierarchy (portuguese):</h2>\n";
 makeList();
 ?>
 </body>

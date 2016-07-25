@@ -175,7 +175,6 @@ class DataBase {
 		// check if base tables exists, will return error code '00000' if ok
 		$this->connection->exec('SELECT 1 FROM categories LIMIT 1;');
 		if ($this->connection->errorCode() != "00000") {
-			// create tables and 'update' database
 			$this->createTables();
 			$this->connection->beginTransaction();
 			$this->addFolder($this->basepath);
@@ -201,6 +200,7 @@ class DataBase {
 			SELECT id, parent, categories_data.lang, categories_data.name
 			from categories_indexes, categories_data
 			where categories_data.cat == categories_indexes.id;');
+		// article data
 		$db->exec('CREATE TABLE IF NOT EXISTS "articles_indexes" (
 			"id" INTEGER PRIMARY KEY AUTOINCREMENT,
 			"category" INTEGER REFERENCES categories_indexes(id),

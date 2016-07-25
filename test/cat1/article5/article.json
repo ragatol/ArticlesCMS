@@ -1,0 +1,11 @@
+{
+	"languages" : {
+		"en" : {
+			"title": "English Only Article",
+			"description": "An article that is available only in english.",
+			"file": "article5.md",
+			"keywords": "english,only"
+		}
+	},
+	"author": "Rafael Fernandes"
+}
