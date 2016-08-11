@@ -74,6 +74,7 @@ class Category {
 	private $database;
 	public $id;
 	public $parent;
+	public $identifier;
 	public $lang;
 	public $name;
 
@@ -92,19 +93,19 @@ class Category {
 
 	/**
 	 * Returns a Generator that returns Article objects from this Category
-	 * @param string $sortby how to sort the articles
+	 * @param string $order how to sort the articles
 	 * @param string $limit how much articles to fetch
 	 * @return \Generator
 	 */
-	public function listArticles( $sortby = '', int $limit = -1, int $start = -1) : \Generator {
+	public function listArticles( $order = NULL, int $limit = 0, int $start = 0) : \Generator {
 		$pdo = $this->database->PDO();
 		$lang = $this->database->getLanguage();
-		if ($sortby != '') $sortby = "SORT BY ".$pdo->$sortby;
+		if ($order !== NULL) $order = "ORDER BY ".$order;
 		$strlimit = "";
-		if ($limit > -1) $strlimit .= "LIMIT $limit ";
-		if ($start > -1) $strlimit .= "OFFSET $start";
-		$res = $pdo->query("SELECT id, title, author, category, description, lang, file, keywords, published, edited
-				FROM articles WHERE lang == \"$lang\" AND category == $this->id $sortby $strlimit;");
+		if ($limit > 0) $strlimit .= "LIMIT $limit ";
+		if ($start > 0) $strlimit .= "OFFSET $start";
+		$res = $pdo->query("SELECT * FROM articles WHERE lang == \"$lang\" AND category == $this->id $order $strlimit;");
+		if ($res === FALSE) return;
 		while ($o = $res->fetchObject("Articles\Article",[$this->database])) {
 			yield $o;
 		}
@@ -158,13 +159,14 @@ class DataBase {
 		$db->exec('CREATE TABLE IF NOT EXISTS "categories_indexes" (
 			"id" INTEGER PRIMARY KEY AUTOINCREMENT,
 			"parent" INTEGER REFERENCES categories_indexes,
+			"identifier" TEXT,
 			"path" TEXT);');
 		$db->exec('CREATE TABLE IF NOT EXISTS "categories_data" (
 			"cat" INTEGER REFERENCES categories_indexes(id),
 			"lang" TEXT,
 			"name" TEXT)');
 		$db->exec('CREATE VIEW "categories" AS
-			SELECT id, parent, categories_data.lang, categories_data.name
+			SELECT id, parent, identifier, categories_data.lang, categories_data.name
 			from categories_indexes, categories_data
 			where categories_data.cat == categories_indexes.id;');
 		// article data
@@ -213,7 +215,8 @@ class DataBase {
 
 	function makeCategory( string $path, int $parent ) : int {
 		$info = \json_decode(\file_get_contents($path."category.json"));
-		$this->connection->exec("INSERT INTO \"categories_indexes\" (parent,path) VALUES ($parent,\"$path\");");
+		$identifier = $info->id ?? \basename($path);
+		$this->connection->exec("INSERT INTO \"categories_indexes\" (parent,identifier,path) VALUES ($parent,\"$identifier\",\"$path\");");
 		$id = $this->connection->lastInsertId();
 		$ins = $this->connection->prepare("INSERT INTO 'categories_data' (cat,lang,name) values ($id,:language,:name);");
 		foreach ($info as $lang => $name) {
@@ -278,15 +281,21 @@ class DataBase {
 
 	public function getCategory( int $cat_id ) : Category {
 		$res = $this->connection->query("SELECT * FROM categories WHERE id == $cat_id AND lang == \"$this->language\";");
-		if ($res->rowCount() > 0) return $res->fetchObject("Articles\Category",[$this]);
-		return NULL;
+		return $res->fetchObject("Articles\Category",[$this]);
+	}
+
+	public function getCategoryByIdentifier( string $cat_identifier ) : Category {
+		$res = $this->connection->prepare("SELECT * FROM categories WHERE identifier == :identifier AND lang == :language;");
+		$res->bindParam(':identifier',$cat_identifier);
+		$res->bindParam(':language',$this->language);
+		$res->execute();
+		return $res->fetchObject("Articles\Category",[$this]);
 	}
 
 	public function getArticle( int $article_id ) : Article {
 		$res = $this->connection->query("SELECT id, title, author, description, category, lang, file, keywords, published, edited
 				FROM articles WHERE id == $article_id AND lang == \"$this->language\";");
-		if ($res->rowCount() > 0) return $res->fetchObject("Articles\Article",[$this]);
-		return NULL;
+		return $res->fetchObject("Articles\Article",[$this]);
 	}
 
 	public function PDO() : \PDO {

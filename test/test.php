@@ -8,7 +8,7 @@ function makeList($category = 0) {
 	global $db;
 	echo "<ul>\n";
 	foreach ($db->listCategories($category) as $cat) {
-		echo "<li><h3>$cat->name</h3>\n";
+		echo "<li><h3>$cat->name ($cat->identifier)</h3>\n";
 		echo "<ul>";
 		foreach ($cat->listArticles() as $article) {
 			echo "<li><h4>$article->title:</h4> $article->description</li>\n";
@@ -37,6 +37,12 @@ makeList();
 <?php
 $db->setLanguage("pt");
 makeList();
+?>
+
+<h2>Selecting category by identifier:</h2>
+<?php
+$cat = $db->getCategoryByIdentifier('cat1');
+echo "<p>$cat->name</p>\n";
 ?>
 </body>
 </html>
