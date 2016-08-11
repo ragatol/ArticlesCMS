@@ -87,7 +87,7 @@ class Category {
 	 * @param string $language language to get the 'name' property from
 	 * @return \Generator
 	 */
-	public function listSubCategories() : \Generator {
+	public function listSubCategories() {
 		return $this->database->listCategories($this->id);
 	}
 
@@ -97,7 +97,7 @@ class Category {
 	 * @param string $limit how much articles to fetch
 	 * @return \Generator
 	 */
-	public function listArticles( $order = NULL, int $limit = 0, int $start = 0) : \Generator {
+	public function listArticles( $order = NULL, int $limit = 0, int $start = 0) {
 		$pdo = $this->database->PDO();
 		$lang = $this->database->getLanguage();
 		if ($order !== NULL) $order = "ORDER BY ".$order;
@@ -262,7 +262,7 @@ class DataBase {
 	 * @param string $language
 	 * @return \Generator
 	 */
-	public function listCategories(int $parent_category = 0) : \Generator {
+	public function listCategories(int $parent_category = 0) {
 		$res = $this->connection->query("SELECT * FROM categories WHERE lang == \"$this->language\" AND parent == $parent_category;");
 		while ($cat = $res->fetchObject("Articles\Category",[$this])) {
 			yield $cat;
@@ -275,16 +275,16 @@ class DataBase {
 	 * @param int $parent parent Category
 	 * @return Category
 	 */
-	public function newCategory( string $dirname, int $parent = 0 ) : Category {
+	public function newCategory( string $dirname, int $parent = 0 ) {
 		return NULL;
 	}
 
-	public function getCategory( int $cat_id ) : Category {
+	public function getCategory( int $cat_id ) {
 		$res = $this->connection->query("SELECT * FROM categories WHERE id == $cat_id AND lang == \"$this->language\";");
 		return $res->fetchObject("Articles\Category",[$this]);
 	}
 
-	public function getCategoryByIdentifier( string $cat_identifier ) : Category {
+	public function getCategoryByIdentifier( string $cat_identifier ) {
 		$res = $this->connection->prepare("SELECT * FROM categories WHERE identifier == :identifier AND lang == :language;");
 		$res->bindParam(':identifier',$cat_identifier);
 		$res->bindParam(':language',$this->language);
@@ -292,7 +292,7 @@ class DataBase {
 		return $res->fetchObject("Articles\Category",[$this]);
 	}
 
-	public function getArticle( int $article_id ) : Article {
+	public function getArticle( int $article_id ) {
 		$res = $this->connection->query("SELECT id, title, author, description, category, lang, file, keywords, published, edited
 				FROM articles WHERE id == $article_id AND lang == \"$this->language\";");
 		return $res->fetchObject("Articles\Article",[$this]);
