@@ -112,7 +112,7 @@ class Category {
 	}
 
 	/**
-	 * Returns a Generator that returns Article objects from this Category and Sub-Categories
+	 * Returns a Generator that returns Article objects from this Category and all Sub-Categories
 	 * @param string $order how to sort the articles
 	 * @param string $limit how much articles to fetch
 	 * @return \Generator
@@ -126,7 +126,7 @@ class Category {
 		if ($start > 0) $strlimit .= "OFFSET $start";
 		$res = $pdo->query("WITH RECURSIVE pcat(category) AS (
 				VALUES($this->id)
-				UNION ALL SELECT ci.id from categories_indexex ci, pcat
+				UNION ALL SELECT ci.id from categories_indexes ci, pcat
 				WHERE ci.parent = pcat.category LIMIT 100
 			)
 			SELECT * FROM articles WHERE lang == \"$lang\" AND category IN pcat $order $strlimit;");
