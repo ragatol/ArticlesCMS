@@ -7,10 +7,10 @@ $db = new Articles\DataBase("test.json");
 function makeList($category = 0) { 
 	global $db;
 	echo "<ul>\n";
-	foreach ($db->listCategories($category) as $cat) {
+	foreach ($db->categories($category) as $cat) {
 		echo "<li><h3>$cat->name ($cat->identifier)</h3>\n";
 		echo "<ul>";
-		foreach ($cat->listArticles() as $article) {
+		foreach ($cat->articles() as $article) {
 			echo "<li><h4>$article->title:</h4> $article->description</li>\n";
 		}
 		echo "</ul>\n";
@@ -41,7 +41,7 @@ makeList();
 
 <h2>Selecting category by identifier:</h2>
 <?php
-$cat = $db->getCategoryByIdentifier('cat1');
+$cat = $db->categoryByIdentifier('cat1');
 echo "<p>$cat->name</p>\n";
 ?>
 </body>

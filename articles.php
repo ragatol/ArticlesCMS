@@ -87,8 +87,8 @@ class Category {
 	 * @param string $language language to get the 'name' property from
 	 * @return \Generator
 	 */
-	public function listSubCategories() {
-		return $this->database->listCategories($this->id);
+	public function subCategories() {
+		return $this->database->categories($this->id);
 	}
 
 	/**
@@ -97,7 +97,7 @@ class Category {
 	 * @param string $limit how much articles to fetch
 	 * @return \Generator
 	 */
-	public function listArticles( $order = NULL, int $limit = 0, int $start = 0) {
+	public function articles( $order = NULL, int $limit = 0, int $start = 0) {
 		$pdo = $this->database->PDO();
 		$lang = $this->database->getLanguage();
 		if ($order !== NULL) $order = "ORDER BY ".$order;
@@ -105,6 +105,31 @@ class Category {
 		if ($limit > 0) $strlimit .= "LIMIT $limit ";
 		if ($start > 0) $strlimit .= "OFFSET $start";
 		$res = $pdo->query("SELECT * FROM articles WHERE lang == \"$lang\" AND category == $this->id $order $strlimit;");
+		if ($res === FALSE) return;
+		while ($o = $res->fetchObject("Articles\Article",[$this->database])) {
+			yield $o;
+		}
+	}
+
+	/**
+	 * Returns a Generator that returns Article objects from this Category and Sub-Categories
+	 * @param string $order how to sort the articles
+	 * @param string $limit how much articles to fetch
+	 * @return \Generator
+	 */
+	public function articlesRecursive( $order = NULL, int $limit = 0, int $start = 0) {
+		$pdo = $this->database->PDO();
+		$lang = $this->database->getLanguage();
+		if ($order !== NULL) $order = "ORDER BY ".$order;
+		$strlimit = "";
+		if ($limit > 0) $strlimit .= "LIMIT $limit ";
+		if ($start > 0) $strlimit .= "OFFSET $start";
+		$res = $pdo->query("WITH RECURSIVE pcat(category) AS (
+				VALUES($this->id)
+				UNION ALL SELECT ci.id from categories_indexex ci, pcat
+				WHERE ci.parent = pcat.category LIMIT 100
+			)
+			SELECT * FROM articles WHERE lang == \"$lang\" AND category IN pcat $order $strlimit;");
 		if ($res === FALSE) return;
 		while ($o = $res->fetchObject("Articles\Article",[$this->database])) {
 			yield $o;
@@ -262,7 +287,7 @@ class DataBase {
 	 * @param string $language
 	 * @return \Generator
 	 */
-	public function listCategories(int $parent_category = 0) {
+	public function categories(int $parent_category = 0) {
 		$res = $this->connection->query("SELECT * FROM categories WHERE lang == \"$this->language\" AND parent == $parent_category;");
 		while ($cat = $res->fetchObject("Articles\Category",[$this])) {
 			yield $cat;
@@ -279,12 +304,12 @@ class DataBase {
 		return NULL;
 	}
 
-	public function getCategory( int $cat_id ) {
+	public function category( int $cat_id ) {
 		$res = $this->connection->query("SELECT * FROM categories WHERE id == $cat_id AND lang == \"$this->language\";");
 		return $res->fetchObject("Articles\Category",[$this]);
 	}
 
-	public function getCategoryByIdentifier( string $cat_identifier ) {
+	public function categoryByIdentifier( string $cat_identifier ) {
 		$res = $this->connection->prepare("SELECT * FROM categories WHERE identifier == :identifier AND lang == :language;");
 		$res->bindParam(':identifier',$cat_identifier);
 		$res->bindParam(':language',$this->language);
@@ -292,7 +317,7 @@ class DataBase {
 		return $res->fetchObject("Articles\Category",[$this]);
 	}
 
-	public function getArticle( int $article_id ) {
+	public function article( int $article_id ) {
 		$res = $this->connection->query("SELECT id, title, author, description, category, lang, file, keywords, published, edited
 				FROM articles WHERE id == $article_id AND lang == \"$this->language\";");
 		return $res->fetchObject("Articles\Article",[$this]);
