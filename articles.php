@@ -34,7 +34,8 @@ class Article {
 	private $database;
 
 	public $id;
-	public $category;
+	public $identifier;
+	private $category;
 	public $lang;
 	public $title;
 	public $author;
@@ -48,6 +49,10 @@ class Article {
 
 	public function __construct(DataBase $db) {
 		$this->database = $db;
+	}
+
+	public function getCategory() {
+		return $this->database->category($this->category);
 	}
 
 }
@@ -93,8 +98,9 @@ class Category {
 
 	/**
 	 * Returns a Generator that returns Article objects from this Category
-	 * @param string $order how to sort the articles
-	 * @param string $limit how much articles to fetch
+	 * @param string $order how to sort the articles (not safe for end user interface)
+	 * @param int $limit how much articles to fetch
+	 * @param int $start offset of the results
 	 * @return \Generator
 	 */
 	public function articles( $order = NULL, int $limit = 0, int $start = 0) {
@@ -113,8 +119,9 @@ class Category {
 
 	/**
 	 * Returns a Generator that returns Article objects from this Category and all Sub-Categories
-	 * @param string $order how to sort the articles
-	 * @param string $limit how much articles to fetch
+	 * @param string $order how to sort the articles (not safe for end user interface)
+	 * @param int $limit how much articles to fetch
+	 * @param int $start offset of the results (discard the first $start objects)
 	 * @return \Generator
 	 */
 	public function articlesRecursive( $order = NULL, int $limit = 0, int $start = 0) {
@@ -187,44 +194,46 @@ class DataBase {
 			"identifier" TEXT,
 			"path" TEXT);');
 		$db->exec('CREATE TABLE IF NOT EXISTS "categories_data" (
-			"cat" INTEGER REFERENCES categories_indexes(id),
+			"id" INTEGER REFERENCES categories_indexes(id),
 			"lang" TEXT,
 			"name" TEXT)');
 		$db->exec('CREATE VIEW "categories" AS
-			SELECT id, parent, identifier, categories_data.lang, categories_data.name
+			SELECT categories_indexes.id, parent, identifier, categories_data.lang, categories_data.name
 			from categories_indexes, categories_data
-			where categories_data.cat == categories_indexes.id;');
+			where categories_data.id == categories_indexes.id;');
 		// article data
 		$db->exec('CREATE TABLE IF NOT EXISTS "articles_indexes" (
 			"id" INTEGER PRIMARY KEY AUTOINCREMENT,
 			"category" INTEGER REFERENCES categories_indexes(id),
+			"identifier" TEXT,
 			"author" TEXT,
 			"published" DATETIME,
 			"edited" DATETIME,
 			"path" TEXT)');
 		$db->exec('CREATE TABLE IF NOT EXISTS "articles_data" (
-			"article" INTEGER REFERENCES articles_indexes(id),
+			"id" INTEGER REFERENCES articles_indexes(id),
 			"lang" TEXT,
 			"title" TEXT,
 			"description" TEXT,
 			"keywords" TEXT,
 			"file" TEXT)');
 		$db->exec('CREATE VIEW "articles" AS
-			SELECT id, category, lang, title, description, author, published, edited, path, file, keywords
+			SELECT articles_indexes.id, identifier, category, lang, title, description, author, published, edited, path, file, keywords
 			FROM articles_indexes, articles_data
-			WHERE articles_data.article == articles_indexes.id;');
+			WHERE articles_data.id == articles_indexes.id;');
 	}
 
 	function makeArticle( string $path, int $category ) : int {
 		$info = \json_decode(\file_get_contents($path."article.json"));
+		$identifier = $info->id ?? \basename($path);
 		// verify edited and published datetimes
 		if (!isset($info->edited)) $info->edited = date(DATE_ATOM);
 		if (!isset($info->published)) $info->published = date(DATE_ATOM);
-		$this->connection->exec("INSERT INTO 'articles_indexes' (category, author, edited, published, path)
-				 VALUES ($category,'$info->author','$info->edited','$info->published','$path');");
+		$this->connection->exec("INSERT INTO 'articles_indexes' (identifier, category, author, edited, published, path)
+				 VALUES (\"$identifier\",$category,'$info->author','$info->edited','$info->published','$path');");
 		$id = $this->connection->lastInsertId();
 		// add language dependent info
-		$sql = $this->connection->prepare("INSERT INTO 'articles_data' (article, lang, title, description, keywords, file)
+		$sql = $this->connection->prepare("INSERT INTO 'articles_data' (id, lang, title, description, keywords, file)
 				VALUES ($id, :lang, :title, :description, :keywords, :file);");
 		foreach ($info->languages as $lang => $data) {
 			if (!isset($data->keywords)) $data->keywords = "";
@@ -243,7 +252,7 @@ class DataBase {
 		$identifier = $info->id ?? \basename($path);
 		$this->connection->exec("INSERT INTO \"categories_indexes\" (parent,identifier,path) VALUES ($parent,\"$identifier\",\"$path\");");
 		$id = $this->connection->lastInsertId();
-		$ins = $this->connection->prepare("INSERT INTO 'categories_data' (cat,lang,name) values ($id,:language,:name);");
+		$ins = $this->connection->prepare("INSERT INTO 'categories_data' (id,lang,name) values ($id,:language,:name);");
 		foreach ($info as $lang => $name) {
 			$ins->bindParam(':language',$lang);
 			$ins->bindParam(':name',$name);
@@ -320,6 +329,14 @@ class DataBase {
 	public function article( int $article_id ) {
 		$res = $this->connection->query("SELECT id, title, author, description, category, lang, file, keywords, published, edited
 				FROM articles WHERE id == $article_id AND lang == \"$this->language\";");
+		return $res->fetchObject("Articles\Article",[$this]);
+	}
+
+	public function articleByIdentifier( string $identifier ) {
+		$res = $this->connection->prepare("SELECT * FROM articles WHERE identifier = :identifier AND lang = :language;");
+		$res->bindParam(':identifier',$identifier);
+		$res->bindParam(':language',$this->language);
+		$res->execute();
 		return $res->fetchObject("Articles\Article",[$this]);
 	}
 
