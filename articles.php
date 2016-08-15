@@ -34,7 +34,7 @@ class Article {
 	private $database;
 
 	public $id;
-	public $identifier;
+	public $name;
 	private $category;
 	public $lang;
 	public $title;
@@ -79,9 +79,9 @@ class Category {
 	private $database;
 	public $id;
 	public $parent;
-	public $identifier;
-	public $lang;
 	public $name;
+	public $lang;
+	public $title;
 
 	public function __construct(DataBase $db) {
 		$this->database = $db;
@@ -92,7 +92,7 @@ class Category {
 	 * @param string $language language to get the 'name' property from
 	 * @return \Generator
 	 */
-	public function subCategories() {
+	public function categories() {
 		return $this->database->categories($this->id);
 	}
 
@@ -131,12 +131,12 @@ class Category {
 		$strlimit = "";
 		if ($limit > 0) $strlimit .= "LIMIT $limit ";
 		if ($start > 0) $strlimit .= "OFFSET $start";
-		$res = $pdo->query("WITH RECURSIVE pcat(category) AS (
+		$res = $pdo->query("WITH RECURSIVE child_categories(id) AS (
 				VALUES($this->id)
-				UNION ALL SELECT ci.id from categories_indexes ci, pcat
-				WHERE ci.parent = pcat.category LIMIT 100
+				UNION SELECT ci.id from categories_indexes ci, child_categories cc
+				WHERE ci.parent = cc.id LIMIT 100
 			)
-			SELECT * FROM articles WHERE lang == \"$lang\" AND category IN pcat $order $strlimit;");
+			SELECT * FROM articles WHERE lang == \"$lang\" AND category IN child_categories $order $strlimit;");
 		if ($res === FALSE) return;
 		while ($o = $res->fetchObject("Articles\Article",[$this->database])) {
 			yield $o;
@@ -189,23 +189,23 @@ class DataBase {
 		$db = $this->connection;
 		// category data
 		$db->exec('CREATE TABLE IF NOT EXISTS "categories_indexes" (
-			"id" INTEGER PRIMARY KEY AUTOINCREMENT,
+			"id" INTEGER PRIMARY KEY ASC,
 			"parent" INTEGER REFERENCES categories_indexes,
-			"identifier" TEXT,
+			"name" TEXT UNIQUE NOT NULL,
 			"path" TEXT);');
 		$db->exec('CREATE TABLE IF NOT EXISTS "categories_data" (
 			"id" INTEGER REFERENCES categories_indexes(id),
 			"lang" TEXT,
-			"name" TEXT)');
+			"title" TEXT)');
 		$db->exec('CREATE VIEW "categories" AS
-			SELECT categories_indexes.id, parent, identifier, categories_data.lang, categories_data.name
-			from categories_indexes, categories_data
-			where categories_data.id == categories_indexes.id;');
+			SELECT ci.id, ci.parent, ci.name, cd.lang, cd.title
+			FROM categories_indexes ci, categories_data cd
+			WHERE cd.id == ci.id;');
 		// article data
 		$db->exec('CREATE TABLE IF NOT EXISTS "articles_indexes" (
-			"id" INTEGER PRIMARY KEY AUTOINCREMENT,
+			"id" INTEGER PRIMARY KEY ASC,
 			"category" INTEGER REFERENCES categories_indexes(id),
-			"identifier" TEXT,
+			"name" TEXT UNIQUE NOT NULL,
 			"author" TEXT,
 			"published" DATETIME,
 			"edited" DATETIME,
@@ -218,44 +218,46 @@ class DataBase {
 			"keywords" TEXT,
 			"file" TEXT)');
 		$db->exec('CREATE VIEW "articles" AS
-			SELECT articles_indexes.id, identifier, category, lang, title, description, author, published, edited, path, file, keywords
+			SELECT articles_indexes.id, name, category, lang, title, description, author, published, edited, path, file, keywords
 			FROM articles_indexes, articles_data
 			WHERE articles_data.id == articles_indexes.id;');
+		$db->exec('ANALYZE;');
 	}
 
 	function makeArticle( string $path, int $category ) : int {
-		$info = \json_decode(\file_get_contents($path."article.json"));
-		$identifier = $info->id ?? \basename($path);
-		// verify edited and published datetimes
-		if (!isset($info->edited)) $info->edited = date(DATE_ATOM);
-		if (!isset($info->published)) $info->published = date(DATE_ATOM);
-		$this->connection->exec("INSERT INTO 'articles_indexes' (identifier, category, author, edited, published, path)
-				 VALUES (\"$identifier\",$category,'$info->author','$info->edited','$info->published','$path');");
+		// basic info
+		$info = \json_decode(\file_get_contents($path."/article.json"));
+		$name = $info->name ?? \basename($path);
+		$edited = $info->edited ?? \date(DATE_ATOM);
+		$published = $info->published ?? \date(DATE_ATOM);
+		$this->connection->exec("INSERT INTO 'articles_indexes' (name, category, author, edited, published, path)
+				 VALUES ('$name',$category,'$info->author','$edited','$published','$path');");
 		$id = $this->connection->lastInsertId();
-		// add language dependent info
+		// language dependent info
 		$sql = $this->connection->prepare("INSERT INTO 'articles_data' (id, lang, title, description, keywords, file)
 				VALUES ($id, :lang, :title, :description, :keywords, :file);");
 		foreach ($info->languages as $lang => $data) {
-			if (!isset($data->keywords)) $data->keywords = "";
 			$sql->bindParam(':lang', $lang);
 			$sql->bindParam(':title', $data->title);
 			$sql->bindParam(':description', $data->description);
-			$sql->bindParam(':keywords', $data->keywords);
-			$sql->bindValue(':file', $path.$data->file);
+			$sql->bindValue(':keywords', $data->keywords ?? "");
+			$sql->bindValue(':file', $path."/".$data->file);
 			$sql->execute();
 		}
 		return $id;
 	}
 
 	function makeCategory( string $path, int $parent ) : int {
-		$info = \json_decode(\file_get_contents($path."category.json"));
-		$identifier = $info->id ?? \basename($path);
-		$this->connection->exec("INSERT INTO \"categories_indexes\" (parent,identifier,path) VALUES ($parent,\"$identifier\",\"$path\");");
+		// basic info
+		$info = \json_decode(\file_get_contents($path."/category.json"));
+		$name = $info->name ?? \basename($path);
+		$this->connection->exec("INSERT INTO \"categories_indexes\" (parent,name,path) VALUES ($parent,\"$name\",\"$path\");");
 		$id = $this->connection->lastInsertId();
-		$ins = $this->connection->prepare("INSERT INTO 'categories_data' (id,lang,name) values ($id,:language,:name);");
-		foreach ($info as $lang => $name) {
+		// language dependent info
+		$ins = $this->connection->prepare("INSERT INTO 'categories_data' (id,lang,title) values ($id,:language,:title);");
+		foreach ($info as $lang => $title) {
 			$ins->bindParam(':language',$lang);
-			$ins->bindParam(':name',$name);
+			$ins->bindParam(':title',$title);
 			$ins->execute();
 		}
 		return $id;
@@ -263,23 +265,21 @@ class DataBase {
 
 	public function addFolder( string $path, int $parent = 0) {
 		// check for article.json (json)
-		if (file_exists($path."article.json")) {
+		if (\file_exists($path."/article.json")) {
 			// directory is an article
 			$this->makeArticle($path,$parent);
 			return;
 		}
-		if (file_exists($path."category.json")) {
+		if (\file_exists($path."/category.json")) {
 			// directory is a category
 			$parent = $this->makeCategory($path,$parent);
 		}
 		// directory is category or neither, check directories inside
-		$dir = opendir($path);
-		if ($dir == FALSE) return;
-		while (false !== ($entry = readdir($dir))) {
-			if ($entry == "." || $entry == "..") continue;
-			$direc = $path.$entry."/";
-			if (!is_dir($direc)) continue;
-			$this->addFolder($direc,$parent);
+		$dir = new \DirectoryIterator($path);
+		foreach ($dir as $fileinfo) {
+			if (!$fileinfo->isDot() && $fileinfo->isDir()) {
+				$this->addFolder($fileinfo->getPathname(),$parent);
+			}
 		}
 	}
 	
@@ -313,28 +313,27 @@ class DataBase {
 		return NULL;
 	}
 
-	public function category( int $cat_id ) {
-		$res = $this->connection->query("SELECT * FROM categories WHERE id == $cat_id AND lang == \"$this->language\";");
+	public function category( int $id ) {
+		$res = $this->connection->query("SELECT * FROM categories WHERE id == $id AND lang == \"$this->language\";");
 		return $res->fetchObject("Articles\Category",[$this]);
 	}
 
-	public function categoryByIdentifier( string $cat_identifier ) {
-		$res = $this->connection->prepare("SELECT * FROM categories WHERE identifier == :identifier AND lang == :language;");
-		$res->bindParam(':identifier',$cat_identifier);
+	public function categoryByName( string $name ) {
+		$res = $this->connection->prepare("SELECT * FROM categories WHERE name == :name AND lang == :language;");
+		$res->bindParam(':name',$name);
 		$res->bindParam(':language',$this->language);
 		$res->execute();
 		return $res->fetchObject("Articles\Category",[$this]);
 	}
 
-	public function article( int $article_id ) {
-		$res = $this->connection->query("SELECT id, title, author, description, category, lang, file, keywords, published, edited
-				FROM articles WHERE id == $article_id AND lang == \"$this->language\";");
+	public function article( int $id ) {
+		$res = $this->connection->query("SELECT * FROM articles WHERE id == $id AND lang == \"$this->language\";");
 		return $res->fetchObject("Articles\Article",[$this]);
 	}
 
-	public function articleByIdentifier( string $identifier ) {
-		$res = $this->connection->prepare("SELECT * FROM articles WHERE identifier = :identifier AND lang = :language;");
-		$res->bindParam(':identifier',$identifier);
+	public function articleByName( string $name ) {
+		$res = $this->connection->prepare("SELECT * FROM articles WHERE name = :name AND lang = :language;");
+		$res->bindParam(':name',$name);
 		$res->bindParam(':language',$this->language);
 		$res->execute();
 		return $res->fetchObject("Articles\Article",[$this]);
