@@ -34,7 +34,7 @@ user-friendly way to manage content.
 
 Category listing:
 ~~~php
-include "articles.php"
+include "articles.php";
 
 $db = new Articles\DataBase("site.json");
 foreach ($db->categories() as $category) {
@@ -44,7 +44,7 @@ foreach ($db->categories() as $category) {
 
 Listing the 10 latest articles from a category:
 ~~~php
-include "articles.php"
+include "articles.php";
 
 $db = new Articles\DataBase("site.json");
 $category = $db->categoryByName("tutorials");
