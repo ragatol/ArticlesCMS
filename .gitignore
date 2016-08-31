@@ -3,3 +3,5 @@ test/test.db
 .settings/
 .project
 .buildpath
+
+.DS_Store
