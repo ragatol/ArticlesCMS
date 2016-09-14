@@ -45,8 +45,6 @@ class Article {
 	public $published;
 	public $edited;
 
-
-
 	public function __construct(DataBase $db) {
 		$this->database = $db;
 	}
@@ -313,11 +311,21 @@ class DataBase {
 		return NULL;
 	}
 
+	/**
+	* Get a Category object from the database
+	* @param int $id category database id
+	* @return Category
+	*/
 	public function category( int $id ) {
 		$res = $this->connection->query("SELECT * FROM categories WHERE id == $id AND lang == \"$this->language\";");
 		return $res->fetchObject("Articles\Category",[$this]);
 	}
 
+	/**
+	* Get a Category object from the database using the unique 'name'
+	* @param string $name unique category name
+	* @return Category
+	*/
 	public function categoryByName( string $name ) {
 		$res = $this->connection->prepare("SELECT * FROM categories WHERE name == :name AND lang == :language;");
 		$res->bindParam(':name',$name);
